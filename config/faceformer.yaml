@@ -1,0 +1,75 @@
+DATA:
+  # 多数据集配置 - 支持 digital_human, MEAD_VHAP, MultiModal200
+  # 数据根目录（统一设置为 /home/caizhuoqiang/hdd/data）
+  data_root:
+    - /home/caizhuoqiang/hdd/data
+    - /home/caizhuoqiang/hdd/data
+    - /home/caizhuoqiang/hdd/data
+
+  # 训练JSON列表（路径相对于data_root）
+  train_json_list:
+    - dataset_jsons/splits/MEAD_VHAP_train.json
+    - dataset_jsons/splits/MultiModal200_train.json
+    - dataset_jsons/digital_human.json
+
+  # 验证JSON列表（路径相对于data_root）
+  val_json_list:
+    - dataset_jsons/splits/MEAD_VHAP_val.json
+    - dataset_jsons/splits/MultiModal200_val.json
+
+  # 测试JSON列表（路径相对于data_root）
+  test_json_list:
+    - dataset_jsons/splits/MEAD_VHAP_test.json
+    - dataset_jsons/splits/MultiModal200_test.json
+
+  # fps设置（顺序与train_json_list对齐: MEAD_VHAP=25, MultiModal200=20, digital_human=25）
+  fps: [25, 20, 25]
+
+  # 数据混合权重（用于训练）
+  duplicate_list: [1, 1, 1]
+
+LOSS:
+  rec_weight: 1.0
+
+NETWORK:
+  use_pca: False  # FLAME系数不需要PCA
+  pca_dim: 512
+
+MODEL:
+  audio_encoder_repo: 'facebook/wav2vec2-base-960h'
+  freeze_wav2vec: False
+  interpolate_pos: 1
+  decoder_dimension: 256
+  decoder_type: transformer
+  period: 30
+  feature_dim: 64
+  vertice_dim: 5023  # FLAME顶点维度
+  template_dim: 51   # motion系数维度 (50 expr + 1 jaw)
+  motion_dim: 51     # 50维expr + 1维jaw_pose
+  max_seq_len: 4000  # 最大序列长度，支持长序列训练
+
+TRAIN:
+  fix_encoder_first: True
+  random_id_prob: 0.1
+  re_init_decoder_and_head: False
+  only_head: False
+  workers: 4  # data loader workers
+  batch_size: 1  # batch size for training
+  batch_size_val: 1  # batch size for validation during training
+  lr: 0.00001
+  epochs: 1000  # 训练1000个epoch
+  save_every: 200  # 每200个epoch保存一次checkpoint (共5个checkpoint)
+  save_path: "./outputs/faceformer_1000epoch"
+  weight_path: null  # 从头开始训练
+  eval_every: 10  # 每10个epoch进行一次验证
+  test_every: 50  # 每50个epoch进行一次测试
+  log_every: 1
+  do_test: True
+  gradient_accumulation_steps: 1
+  device: "cuda"
+
+TEST:
+  test_wav_dir: "./test_audios"
+  test_out_path: "./results/metrics"
+  render_video: True
+  # 推理输出目录结构：results/metrics/{RUN_ID}/{STAGE_TAG}/{exp_name}/{DATASET}/{STYLE_ID}/

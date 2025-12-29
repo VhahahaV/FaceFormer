@@ -69,7 +69,7 @@ def linear_interpolation(features, input_fps, output_fps, output_len=None):
     output_features = F.interpolate(features,size=output_len,align_corners=True,mode='linear')
     return output_features.transpose(1, 2)
 
-class Wav2Vec2Model(Wav2Vec2Model):
+class CustomWav2Vec2Model(Wav2Vec2Model):
     def __init__(self, config):
         super().__init__(config)
     def forward(
@@ -82,12 +82,13 @@ class Wav2Vec2Model(Wav2Vec2Model):
         return_dict=None,
         frame_num=None
     ):
-        self.config.output_attentions = True
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        # Disable output_attentions to avoid SDPA compatibility issues
+        self.config.output_attentions = False
+        output_attentions = False
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        return_dict = True  # Force return dict for compatibility
 
         hidden_states = self.feature_extractor(input_values)
         hidden_states = hidden_states.transpose(1, 2)
@@ -111,7 +112,12 @@ class Wav2Vec2Model(Wav2Vec2Model):
             ] = 1
             attention_mask = attention_mask.flip([-1]).cumsum(-1).flip([-1]).bool()
 
-        hidden_states = self.feature_projection(hidden_states)
+        # Handle feature_projection output (may return tuple or tensor)
+        proj_output = self.feature_projection(hidden_states)
+        if isinstance(proj_output, tuple):
+            hidden_states = proj_output[0]  # Take the first element if tuple
+        else:
+            hidden_states = proj_output  # Use directly if tensor
 
         if self.config.apply_spec_augment and self.training:
             batch_size, sequence_length, hidden_size = hidden_states.size()
