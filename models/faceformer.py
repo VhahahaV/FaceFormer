@@ -66,16 +66,29 @@ class PeriodicPositionalEncoding(nn.Module):
     def __init__(self, d_model, dropout=0.1, period=25, max_seq_len=600):
         super(PeriodicPositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
-        pe = torch.zeros(max_seq_len, d_model)
-        position = torch.arange(0, max_seq_len, dtype=torch.float).unsqueeze(1)
+        self.d_model = d_model
+        self.max_seq_len = max_seq_len
         div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0).transpose(0, 1)
+        self.register_buffer('div_term', div_term)
+        pe = self._build_pe(max_seq_len, device=torch.device('cpu'), dtype=torch.float)
         self.register_buffer('pe', pe)
 
+    def _build_pe(self, length, device, dtype):
+        position = torch.arange(0, length, dtype=dtype, device=device).unsqueeze(1)
+        div_term = self.div_term.to(device=device, dtype=dtype)
+        pe = torch.zeros(length, self.d_model, device=device, dtype=dtype)
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        return pe.unsqueeze(0).transpose(0, 1)
+
     def forward(self, x):
-        x = x + self.pe[:x.size(0), :]
+        seq_len = x.size(0)
+        if seq_len > self.pe.size(0):
+            new_len = max(seq_len, self.pe.size(0) * 2)
+            self.pe = self._build_pe(new_len, device=x.device, dtype=x.dtype)
+        elif self.pe.device != x.device or self.pe.dtype != x.dtype:
+            self.pe = self.pe.to(device=x.device, dtype=x.dtype)
+        x = x + self.pe[:seq_len, :]
         return self.dropout(x)
 
 
